@@ -5,29 +5,19 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Rocket, Loader2, Download, Printer } from 'lucide-react';
+import { Rocket, Loader2, Download, Printer, MessageSquare, Search } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
-
-interface FormData {
-  name: string;
-  position: string;
-  email: string;
-  phone: string;
-  education: string;
-  experience: string;
-  skills: string;
-}
-
-type TemplateStyle = 'professional' | 'minimal' | 'creative' | 'classic';
-
-interface Template {
-  name: string;
-  render: (content: FormData) => React.ReactNode;
-}
+import MockInterview from './mock-interview';
+import JobSearch from './job-search';
+import { resumeTemplates, type FormData, type TemplateStyle } from './resume-templates';
 
 const ResumeBuilder = () => {
+  // All hooks need to be declared first
   const [step, setStep] = useState(1);
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle>('classic');
+  const [showInterview, setShowInterview] = useState(false);
+  const [showJobSearch, setShowJobSearch] = useState(false);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     position: '',
@@ -37,25 +27,14 @@ const ResumeBuilder = () => {
     experience: '',
     skills: '',
   });
-
+  
   const resumeRef = useRef<HTMLDivElement>(null);
-  const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle>('classic');
 
-  // Modified print handler
+  // Handlers
   const handlePrint = useReactToPrint({
     content: () => resumeRef.current,
     documentTitle: `${formData.name.replace(/\s+/g, '_')}_Resume`,
-    onBeforeGetContent: () => {
-      return new Promise((resolve) => {
-        resolve();
-      });
-    },
-    onPrintError: (error) => console.error('Print failed:', error),
   });
-
-  const handleExport = () => {
-    handlePrint();
-  };
 
   const handleInitialSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,192 +52,27 @@ const ResumeBuilder = () => {
     }));
   };
 
-  const templates: Record<TemplateStyle, Template> = {
-    professional: {
-      name: "Professional",
-      render: (content: FormData) => (
-        <div className="p-8 font-sans">
-          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-6 rounded-lg mb-8">
-            <h1 className="text-3xl font-bold text-gray-800 mb-2">{content.name || 'Your Name'}</h1>
-            <h2 className="text-xl text-blue-600 mb-3">{content.position || 'Desired Position'}</h2>
-            <div className="flex gap-4 text-gray-600">
-              {content.email && <span className="flex items-center gap-1">📧 {content.email}</span>}
-              {content.phone && <span className="flex items-center gap-1">📱 {content.phone}</span>}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-3 gap-8">
-            <div className="col-span-2 space-y-6">
-              <div>
-                <h2 className="text-xl font-bold text-blue-700 mb-4 pb-2 border-b-2 border-blue-100">
-                  Professional Experience
-                </h2>
-                <div className="whitespace-pre-line text-gray-700 leading-relaxed">
-                  {content.experience || 'Your work experience...'}
-                </div>
-              </div>
-              
-              <div>
-                <h2 className="text-xl font-bold text-blue-700 mb-4 pb-2 border-b-2 border-blue-100">
-                  Education
-                </h2>
-                <div className="whitespace-pre-line text-gray-700 leading-relaxed">
-                  {content.education || 'Your education history...'}
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-6 rounded-lg">
-              <h2 className="text-xl font-bold text-blue-700 mb-4 pb-2 border-b-2 border-blue-100">
-                Skills & Expertise
-              </h2>
-              <div className="whitespace-pre-line text-gray-700 leading-relaxed">
-                {content.skills || 'Your technical skills...'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    minimal: {
-      name: "Minimal",
-      render: (content: FormData) => (
-        <div className="p-8 font-sans bg-white text-gray-800">
-          <div className="mb-12 border-l-4 border-gray-800 pl-6">
-            <h1 className="text-4xl font-light mb-2">{content.name || 'Your Name'}</h1>
-            <h2 className="text-xl text-gray-600 mb-4">{content.position || 'Desired Position'}</h2>
-            <div className="text-sm text-gray-500 space-y-1">
-              {content.email && <div>{content.email}</div>}
-              {content.phone && <div>{content.phone}</div>}
-            </div>
-          </div>
-
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-lg uppercase tracking-wider mb-4 text-gray-500">Experience</h2>
-              <div className="whitespace-pre-line leading-relaxed">
-                {content.experience || 'Your work experience...'}
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-lg uppercase tracking-wider mb-4 text-gray-500">Education</h2>
-              <div className="whitespace-pre-line leading-relaxed">
-                {content.education || 'Your education history...'}
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-lg uppercase tracking-wider mb-4 text-gray-500">Skills</h2>
-              <div className="whitespace-pre-line leading-relaxed">
-                {content.skills || 'Your technical skills...'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    creative: {
-      name: "Creative",
-      render: (content: FormData) => (
-        <div className="h-full">
-          <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-red-500 p-8 text-white">
-            <h1 className="text-4xl font-bold mb-2">{content.name || 'Your Name'}</h1>
-            <h2 className="text-2xl mb-4">{content.position || 'Desired Position'}</h2>
-            <div className="flex gap-4 text-sm">
-              {content.email && <div className="bg-white/20 px-4 py-1 rounded-full">{content.email}</div>}
-              {content.phone && <div className="bg-white/20 px-4 py-1 rounded-full">{content.phone}</div>}
-            </div>
-          </div>
-
-          <div className="p-8 grid grid-cols-12 gap-8">
-            <div className="col-span-8 space-y-8">
-              <div>
-                <h2 className="text-2xl font-bold text-purple-600 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-1 bg-purple-600"></span>
-                  Experience
-                </h2>
-                <div className="whitespace-pre-line leading-relaxed">
-                  {content.experience || 'Your work experience...'}
-                </div>
-              </div>
-
-              <div>
-                <h2 className="text-2xl font-bold text-pink-600 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-1 bg-pink-600"></span>
-                  Education
-                </h2>
-                <div className="whitespace-pre-line leading-relaxed">
-                  {content.education || 'Your education history...'}
-                </div>
-              </div>
-            </div>
-
-            <div className="col-span-4">
-              <div className="bg-gradient-to-b from-purple-50 to-pink-50 p-6 rounded-xl">
-                <h2 className="text-2xl font-bold text-red-600 mb-4 flex items-center gap-2">
-                  <span className="w-8 h-1 bg-red-600"></span>
-                  Skills
-                </h2>
-                <div className="whitespace-pre-line leading-relaxed">
-                  {content.skills || 'Your technical skills...'}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    },
-    classic: {
-      name: "Classic",
-      render: (content: FormData) => (
-        <div className="p-8">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-serif font-bold mb-2">
-              {content.name || 'Your Name'}
-            </h1>
-            <h2 className="text-xl font-serif text-gray-600 mb-2">
-              {content.position || 'Desired Position'}
-            </h2>
-            <p className="text-gray-600">
-              {content.email && <span>{content.email}</span>}
-              {content.email && content.phone && <span> | </span>}
-              {content.phone && <span>{content.phone}</span>}
-            </p>
-          </div>
-
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-serif font-bold border-b-2 border-gray-300 mb-3">
-                Education
-              </h2>
-              <div className="whitespace-pre-line">
-                {content.education || 'Your education history...'}
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-serif font-bold border-b-2 border-gray-300 mb-3">
-                Experience
-              </h2>
-              <div className="whitespace-pre-line">
-                {content.experience || 'Your work experience...'}
-              </div>
-            </div>
-
-            <div>
-              <h2 className="text-xl font-serif font-bold border-b-2 border-gray-300 mb-3">
-                Skills
-              </h2>
-              <div className="whitespace-pre-line">
-                {content.skills || 'Your technical skills...'}
-              </div>
-            </div>
-          </div>
-        </div>
-      )
-    }
+  const handleStartInterview = () => {
+    setShowInterview(true);
   };
+
+  const handleStartJobSearch = () => {
+    setShowJobSearch(true);
+  };
+
+  const handleBackToResume = () => {
+    setShowInterview(false);
+    setShowJobSearch(false);
+  };
+
+  // After all hooks and handlers, we can have conditional returns
+  if (showInterview) {
+    return <MockInterview onBack={handleBackToResume} resumeData={formData} />;
+  }
+
+  if (showJobSearch) {
+    return <JobSearch onBack={handleBackToResume} position={formData.position} skills={formData.skills} />;
+  }
 
   if (step === 1) {
     return (
@@ -324,9 +138,7 @@ const ResumeBuilder = () => {
 
   return (
     <div className="flex h-screen w-full gap-4 p-4 bg-gray-100">
-      {/* Input Form */}
       <Card className="w-1/2 p-6 overflow-y-auto">
-        {/* ... rest of your form code ... */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold">Resume Information</h2>
           <div className="flex gap-2">
@@ -345,9 +157,23 @@ const ResumeBuilder = () => {
               <Printer className="w-4 h-4" />
               Print
             </Button>
+            <Button
+              onClick={handleStartJobSearch}
+              className="flex items-center gap-2 bg-purple-600 hover:bg-purple-700"
+            >
+              <Search className="w-4 h-4" />
+              Find Jobs
+            </Button>
+            <Button
+              onClick={handleStartInterview}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <MessageSquare className="w-4 h-4" />
+              Practice Interview
+            </Button>
           </div>
         </div>
-        
+
         <div className="mb-6">
           <Label className="mb-2">Template Style</Label>
           <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
@@ -355,7 +181,7 @@ const ResumeBuilder = () => {
               <SelectValue placeholder="Select a template" />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(templates).map(([key, template]) => (
+              {Object.entries(resumeTemplates).map(([key, template]) => (
                 <SelectItem key={key} value={key}>
                   {template.name}
                 </SelectItem>
@@ -365,7 +191,6 @@ const ResumeBuilder = () => {
         </div>
         
         <div className="space-y-6">
-          {/* Form fields remain the same */}
           <div>
             <Label htmlFor="email">Email</Label>
             <Input
@@ -428,12 +253,11 @@ const ResumeBuilder = () => {
         </div>
       </Card>
 
-      {/* Preview */}
       <div className="w-1/2 flex items-start justify-center">
         <div ref={resumeRef} className="w-[8.5in] min-h-[11in]">
           <Card className="bg-white shadow-lg">
             <div className="h-full">
-              {templates[selectedTemplate].render(formData)}
+              {resumeTemplates[selectedTemplate].render(formData)}
             </div>
           </Card>
         </div>
@@ -441,6 +265,5 @@ const ResumeBuilder = () => {
     </div>
   );
 };
-
 
 export default ResumeBuilder;
