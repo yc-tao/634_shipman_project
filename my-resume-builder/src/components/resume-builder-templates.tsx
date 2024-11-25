@@ -10,6 +10,132 @@ import { useReactToPrint } from 'react-to-print';
 import MockInterview from './mock-interview';
 import JobSearch from './job-search';
 import { resumeTemplates, type FormData, type TemplateStyle } from './resume-templates';
+import AnimatedBackground from './animated-bg'; 
+
+interface SectionGeneratorProps {
+  label: string;
+  name: keyof FormData;
+  value: string;
+  onChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
+  placeholder: string;
+}
+
+const ResumeSectionWithLLM = ({ label, name, value, onChange, placeholder }: SectionGeneratorProps) => {
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [showPromptInput, setShowPromptInput] = useState(false);
+  const [prompt, setPrompt] = useState('');
+
+  const handleGenerate = async () => {
+    try {
+      setIsGenerating(true);
+      
+      const response = await fetch('/api/generate-content', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          section: name,
+          prompt,
+          currentContent: value
+        }),
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate content');
+      
+      const data = await response.json();
+      
+      // Create a synthetic event to work with existing onChange handler
+      const syntheticEvent = {
+        target: {
+          name,
+          value: data.content
+        }
+      } as React.ChangeEvent<HTMLTextAreaElement>;
+      
+      onChange(syntheticEvent);
+      setShowPromptInput(false);
+      setPrompt('');
+      
+    } catch (error) {
+      console.error('Error generating content:', error);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex justify-between items-center">
+        <Label htmlFor={name}>{label}</Label>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowPromptInput(true)}
+          className="flex items-center gap-1 text-blue-600 hover:text-blue-700"
+          disabled={isGenerating}
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              AI Generate
+            </>
+          )}
+        </Button>
+      </div>
+
+      {showPromptInput && (
+        <div className="space-y-2 p-3 rounded-lg bg-blue-50 border border-blue-100">
+          <Label htmlFor="prompt" className="text-sm text-blue-700">
+            How would you like to improve this section?
+          </Label>
+          <Input
+            id="prompt"
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="e.g., Make it more concise, add metrics, focus on leadership..."
+            className="text-sm"
+          />
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPromptInput(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleGenerate}
+              disabled={!prompt.trim() || isGenerating}
+              className="bg-blue-600 hover:bg-blue-700 text-white"
+            >
+              Generate
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <Textarea
+        id={name}
+        name={name}
+        value={value}
+        onChange={onChange}
+        placeholder={placeholder}
+        className={`mt-1 h-32 font-mono ${isGenerating ? 'opacity-50' : ''}`}
+        disabled={isGenerating}
+      />
+    </div>
+  );
+};
 
 const ThinkingAnimation = () => (
   <div className="absolute right-0 top-0 flex items-center gap-1">
@@ -22,43 +148,88 @@ const ThinkingAnimation = () => (
   </div>
 );
 
-const TypingAnimation = ({ text }: { text: string }) => {
+const TypingAnimation = ({ text, isDeleting = false }: { text: string; isDeleting?: boolean }) => {
   const [displayedText, setDisplayedText] = useState('');
   const [currentIndex, setCurrentIndex] = useState(0);
 
   useEffect(() => {
-    if (currentIndex < text.length) {
-      const timeout = setTimeout(() => {
-        setDisplayedText(prev => prev + text[currentIndex]);
-        setCurrentIndex(prev => prev + 1);
-      }, 30); // Adjust typing speed here
-
-      return () => clearTimeout(timeout);
+    if (isDeleting) {
+      if (displayedText.length > 0) {
+        const timeout = setTimeout(() => {
+          setDisplayedText(prev => prev.slice(0, -1));
+        }, 5); // Slightly faster deletion speed
+        return () => clearTimeout(timeout);
+      }
+    } else {
+      if (currentIndex < text.length) {
+        const timeout = setTimeout(() => {
+          setDisplayedText(prev => prev + text[currentIndex]);
+          setCurrentIndex(prev => prev + 1);
+        }, 30);
+        return () => clearTimeout(timeout);
+      }
     }
-  }, [text, currentIndex]);
+  }, [text, currentIndex, isDeleting, displayedText]);
+
+  // Reset the animation when text changes
+  useEffect(() => {
+    if (!isDeleting) {
+      setDisplayedText('');
+      setCurrentIndex(0);
+    }
+  }, [text, isDeleting]);
 
   return <span>{displayedText}</span>;
 };
 
 const AnimatedRecommendation = ({ template }: { template: TemplateStyle | null }) => {
   const [showAnimation, setShowAnimation] = useState(false);
+  const [displayedTemplate, setDisplayedTemplate] = useState<TemplateStyle | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [recommendationText, setRecommendationText] = useState('');
 
   useEffect(() => {
-    if (template) {
-      setShowAnimation(true);
+    if (template !== displayedTemplate) {
+      // Start deletion animation if there's existing content
+      if (displayedTemplate) {
+        setIsDeleting(true);
+        const deleteTimeout = setTimeout(() => {
+          setIsDeleting(false);
+          setDisplayedTemplate(template);
+          if (template) {
+            setShowAnimation(true);
+            setRecommendationText(`Based on your desired role, I recommend the ${resumeTemplates[template].name} template for optimal impact.`);
+          }
+        }, 1000); // Wait for deletion animation to complete
+        return () => clearTimeout(deleteTimeout);
+      } else {
+        // First time showing recommendation
+        setDisplayedTemplate(template);
+        if (template) {
+          setShowAnimation(true);
+          setRecommendationText(`Based on your desired role, I recommend the ${resumeTemplates[template].name} template for optimal impact.`);
+        }
+      }
     }
-  }, [template]);
+  }, [template, displayedTemplate]);
 
-  if (!template || !showAnimation) return null;
+  if (!displayedTemplate) {
+    return null;
+  }
 
   return (
-    <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100 shadow-sm">
+    <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100 shadow-sm
+                    transition-all duration-300 ease-in-out"
+         style={{ opacity: showAnimation ? 1 : 0 }}>
       <div className="flex items-center gap-2">
-        <Sparkles className="w-5 h-5 text-blue-500 animate-pulse" />
+        <Sparkles className={`w-5 h-5 text-blue-500 ${!isDeleting && 'animate-pulse'}`} />
         <span className="text-blue-600 font-medium">AI Recommendation</span>
       </div>
-      <div className="mt-2 text-gray-700">
-        <TypingAnimation text={`Based on your desired role, I recommend the ${resumeTemplates[template].name} template for optimal impact.`} />
+      <div className="mt-2 text-gray-700 min-h-[1.5rem]">
+        <TypingAnimation 
+          text={recommendationText}
+          isDeleting={isDeleting}
+        />
       </div>
     </div>
   );
@@ -187,9 +358,10 @@ const ResumeBuilder = () => {
 
   if (step === 1) {
     return (
-      <div className="h-screen w-full flex items-center justify-center bg-gray-100">
+      <div className="h-screen w-full flex items-center justify-center">
+        <AnimatedBackground />
         <Card className="w-full max-w-md p-6">
-          <h1 className="text-2xl font-bold mb-6 text-center">Welcome to Resume Builder</h1>
+          <h1 className="text-2xl font-bold mb-6 text-center">Welcome to IntelliFish</h1>
           <form onSubmit={handleInitialSubmit} className="space-y-6">
             <div>
               <Label htmlFor="name">What's your name?</Label>
@@ -206,7 +378,12 @@ const ResumeBuilder = () => {
             </div>
             
             <div>
-              <Label htmlFor="position">What position are you applying for?</Label>
+              <div className="relative mb-1">
+                <Label htmlFor="position" className="inline-block">
+                  What position are you applying for?
+                </Label>
+                {isThinking && <ThinkingAnimation />}
+              </div>
               <Input
                 id="position"
                 name="position"
@@ -332,39 +509,29 @@ const ResumeBuilder = () => {
             />
           </div>
 
-          <div>
-            <Label htmlFor="education">Education</Label>
-            <Textarea
-              id="education"
-              name="education"
-              value={formData.education}
-              onChange={handleChange}
-              placeholder="BS in Computer Science&#10;University of Example&#10;GPA: 3.95/4.0"
-              className="mt-1 h-32 font-mono"
-            />
-          </div>
+          <ResumeSectionWithLLM
+            label="Education"
+            name="education"
+            value={formData.education}
+            onChange={handleChange}
+            placeholder="BS in Computer Science&#10;University of Example&#10;GPA: 3.95/4.0"
+          />
+
+          <ResumeSectionWithLLM
+            label="Experience"
+            name="experience"
+            value={formData.experience}
+            onChange={handleChange}
+            placeholder="Software Engineer, Example Corp&#10;- Developed full-stack applications using React and Node.js&#10;- Led team of 3 developers on critical projects"
+          />
 
           <div>
-            <Label htmlFor="experience">Experience</Label>
-            <Textarea
-              id="experience"
-              name="experience"
-              value={formData.experience}
-              onChange={handleChange}
-              placeholder="Software Engineer, Example Corp&#10;- Developed full-stack applications using React and Node.js&#10;- Led team of 3 developers on critical projects"
-              className="mt-1 h-32 font-mono"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="skills">Skills</Label>
-            <Textarea
-              id="skills"
+            <ResumeSectionWithLLM
+              label="Skills"
               name="skills"
               value={formData.skills}
               onChange={handleChange}
               placeholder="Languages: Python, JavaScript, Java&#10;Technologies: React, Node.js, Docker, AWS&#10;Soft Skills: Team Leadership, Project Management"
-              className="mt-1 h-32 font-mono"
             />
           </div>
         </div>

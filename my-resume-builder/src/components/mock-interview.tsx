@@ -12,7 +12,8 @@ import {
   MessageSquare, 
   Clock,
   ArrowRight,
-  RotateCcw
+  RotateCcw,
+  Loader2
 } from 'lucide-react';
 
 interface MockInterviewProps {
@@ -41,6 +42,7 @@ const MockInterview: React.FC<MockInterviewProps> = ({ onBack, resumeData }) => 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [timeRemaining, setTimeRemaining] = useState<number>(120); // 2 minutes per question
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   const generateQuestions = () => {
     const questions: Question[] = [
@@ -110,43 +112,42 @@ const MockInterview: React.FC<MockInterviewProps> = ({ onBack, resumeData }) => 
     }, 1000);
   };
 
-  const generateFeedback = (answer: string, keyPoints: string[]) => {
-    let feedback = [];
+  const generateFeedback = async (answer: string, question: Question) => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/interview-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          answer,
+          question: question.text,
+          keyPoints: question.keyPoints,
+          position: resumeData.position
+        }),
+      });
 
-    // Length check
-    if (answer.length < 100) {
-      feedback.push("🔍 Your answer could be more detailed. Aim for comprehensive responses.");
+      if (!response.ok) throw new Error('Failed to generate feedback');
+      const data = await response.json();
+      return data.feedback;
+    } catch (error) {
+      console.error('Error:', error);
+      // Fallback to basic feedback if API fails
+      return `🔍 Review your answer for these key points:\n- ${question.keyPoints.join('\n- ')}\n\n🌟 Remember the STAR method:\n- Situation\n- Task\n- Action\n- Result`;
+    } finally {
+      setIsLoading(false);
     }
-
-    // Key points coverage
-    const missingPoints = keyPoints.filter(
-      point => !answer.toLowerCase().includes(point.toLowerCase())
-    );
-
-    if (missingPoints.length > 0) {
-      feedback.push(`💡 Consider addressing these points in your answer:\n- ${missingPoints.join('\n- ')}`);
-    }
-
-    // Example check
-    if (!answer.toLowerCase().includes('example') && !answer.toLowerCase().includes('instance')) {
-      feedback.push("📝 Try to include specific examples to illustrate your points.");
-    }
-
-    // STAR method reminder
-    if (!feedback.includes('STAR')) {
-      feedback.push("🌟 Remember the STAR method:\n- Situation\n- Task\n- Action\n- Result");
-    }
-
-    return feedback.join('\n\n');
   };
 
-  const handleNextQuestion = () => {
-    // Generate feedback for current answer
+  const handleNextQuestion = async () => {
+    if (!answer.trim()) {
+      setFeedback('Please provide an answer before continuing.');
+      return;
+    }
+
     const currentQuestion = questions[currentQuestionIndex];
-    const newFeedback = generateFeedback(answer, currentQuestion.keyPoints);
+    const newFeedback = await generateFeedback(answer, currentQuestion);
     setFeedback(newFeedback);
 
-    // Move to next question or end interview
     if (currentQuestionIndex < questions.length - 1) {
       setCurrentQuestionIndex(prev => prev + 1);
       setAnswer('');
@@ -269,6 +270,7 @@ const MockInterview: React.FC<MockInterviewProps> = ({ onBack, resumeData }) => 
                 <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
                   <MessageSquare className="w-5 h-5" />
                   Feedback
+                  {isLoading && <Loader2 className="w-4 h-4 animate-spin ml-2" />}
                 </h2>
                 {feedback ? (
                   <div className="whitespace-pre-line text-gray-700">
@@ -276,7 +278,7 @@ const MockInterview: React.FC<MockInterviewProps> = ({ onBack, resumeData }) => 
                   </div>
                 ) : (
                   <div className="text-gray-500 italic">
-                    Complete your answer to receive feedback...
+                    {isLoading ? 'Analyzing your response...' : 'Complete your answer to receive feedback...'}
                   </div>
                 )}
               </Card>

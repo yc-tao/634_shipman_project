@@ -19,9 +19,9 @@ def chat_completions():
     user_message = data.get('messages')[0].get('content')
 
     jobs = scrape_jobs(
-        site_name=["indeed", "linkedin", "zip_recruiter", "glassdoor", "google"],
+        site_name=["indeed", "linkedin"],
         search_term=user_message,
-        results_wanted=1,
+        results_wanted=4,
         hours_old=72,
         country_indeed='USA',
     )
