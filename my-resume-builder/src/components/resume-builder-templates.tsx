@@ -1,15 +1,68 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Rocket, Loader2, Download, Printer, MessageSquare, Search } from 'lucide-react';
+import { Rocket, Loader2, Download, Printer, MessageSquare, Search, Sparkles, Bot } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import MockInterview from './mock-interview';
 import JobSearch from './job-search';
 import { resumeTemplates, type FormData, type TemplateStyle } from './resume-templates';
+
+const ThinkingAnimation = () => (
+  <div className="absolute right-0 top-0 flex items-center gap-1">
+    <Bot className="w-4 h-4 text-blue-500 animate-bounce" />
+    <span className="flex gap-1">
+      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
+      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
+      <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+    </span>
+  </div>
+);
+
+const TypingAnimation = ({ text }: { text: string }) => {
+  const [displayedText, setDisplayedText] = useState('');
+  const [currentIndex, setCurrentIndex] = useState(0);
+
+  useEffect(() => {
+    if (currentIndex < text.length) {
+      const timeout = setTimeout(() => {
+        setDisplayedText(prev => prev + text[currentIndex]);
+        setCurrentIndex(prev => prev + 1);
+      }, 30); // Adjust typing speed here
+
+      return () => clearTimeout(timeout);
+    }
+  }, [text, currentIndex]);
+
+  return <span>{displayedText}</span>;
+};
+
+const AnimatedRecommendation = ({ template }: { template: TemplateStyle | null }) => {
+  const [showAnimation, setShowAnimation] = useState(false);
+
+  useEffect(() => {
+    if (template) {
+      setShowAnimation(true);
+    }
+  }, [template]);
+
+  if (!template || !showAnimation) return null;
+
+  return (
+    <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-100 shadow-sm">
+      <div className="flex items-center gap-2">
+        <Sparkles className="w-5 h-5 text-blue-500 animate-pulse" />
+        <span className="text-blue-600 font-medium">AI Recommendation</span>
+      </div>
+      <div className="mt-2 text-gray-700">
+        <TypingAnimation text={`Based on your desired role, I recommend the ${resumeTemplates[template].name} template for optimal impact.`} />
+      </div>
+    </div>
+  );
+};
 
 const ResumeBuilder = () => {
   // All hooks need to be declared first
@@ -18,6 +71,8 @@ const ResumeBuilder = () => {
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateStyle>('classic');
   const [showInterview, setShowInterview] = useState(false);
   const [showJobSearch, setShowJobSearch] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
+  const [recommendedTemplate, setRecommendedTemplate] = useState<TemplateStyle | null>(null);
   const [formData, setFormData] = useState<FormData>({
     name: '',
     position: '',
@@ -29,6 +84,62 @@ const ResumeBuilder = () => {
   });
   
   const resumeRef = useRef<HTMLDivElement>(null);
+
+  const handlePositionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    setIsThinking(true);
+
+  };
+
+  const getRecommendedTemplate = (position: string): TemplateStyle => {
+    const positionLower = position.toLowerCase();
+    
+    // Creative positions
+    if (positionLower.includes('designer') || 
+        positionLower.includes('artist') || 
+        positionLower.includes('creative') ||
+        positionLower.includes('ux') ||
+        positionLower.includes('ui')) {
+      return 'creative';
+    }
+    
+    // Technical positions
+    if (positionLower.includes('engineer') || 
+        positionLower.includes('developer') || 
+        positionLower.includes('programmer') ||
+        positionLower.includes('technical') ||
+        positionLower.includes('analyst')) {
+      return 'professional';
+    }
+    
+    // Business/Management positions
+    if (positionLower.includes('manager') || 
+        positionLower.includes('executive') || 
+        positionLower.includes('director') ||
+        positionLower.includes('lead') ||
+        positionLower.includes('supervisor')) {
+      return 'classic';
+    }
+    
+    // Minimal for everything else
+    return 'minimal';
+  };
+
+  useEffect(() => {
+    if (formData.position) {
+      const timeoutId = setTimeout(() => {
+        const recommended = getRecommendedTemplate(formData.position);
+        setRecommendedTemplate(recommended);
+        setSelectedTemplate(recommended);
+      }, 500); // Delay before showing recommendation
+
+      return () => clearTimeout(timeoutId);
+    }
+  }, [formData.position]);
 
   // Handlers
   const handlePrint = useReactToPrint({
@@ -100,12 +211,13 @@ const ResumeBuilder = () => {
                 id="position"
                 name="position"
                 value={formData.position}
-                onChange={handleChange}
+                onChange={handlePositionChange}
                 placeholder="Software Engineer"
                 className="mt-1"
                 required
                 disabled={isLoading}
               />
+              <AnimatedRecommendation template={recommendedTemplate} />
             </div>
 
             <button
@@ -188,6 +300,11 @@ const ResumeBuilder = () => {
               ))}
             </SelectContent>
           </Select>
+          {recommendedTemplate && (
+            <p className="mt-2 text-sm text-blue-600">
+              {resumeTemplates[recommendedTemplate].name} template is recommended based on your desired job
+            </p>
+          )}
         </div>
         
         <div className="space-y-6">
